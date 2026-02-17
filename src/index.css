@@ -1548,6 +1548,22 @@ tr:hover td {
   align-items: center;
   gap: 0.5rem;
 }
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--fit-primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.action-link:hover {
+  text-decoration: underline;
+}
+.table-actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 /* ----- Users filters ----- */
 .users-filters {
   margin-bottom: 1rem;

@@ -1,4 +1,4 @@
-import { getUsers as getUsersApi, getUserById as getUserByIdApi, createUser as createUserApi } from '../api/users.js';
+import { getUsers as getUsersApi, getUserById as getUserByIdApi, createUser as createUserApi, updateUser as updateUserApi } from '../api/users.js';
 import { fromApi as userFromApi } from '../models/User.js';
 import { fromApi as paginationFromApi } from '../models/Pagination.js';
 
@@ -37,6 +37,17 @@ export const UserService = {
    */
   async create(payload) {
     const apiUser = await createUserApi(payload);
+    return userFromApi(apiUser);
+  },
+
+  /**
+   * Actualiza el estado de un usuario (PUT /users/:id).
+   * @param {string} id - ID del usuario
+   * @param {'active' | 'inactive'} status
+   * @returns {Promise<object|null>} Usuario actualizado normalizado
+   */
+  async updateStatus(id, status) {
+    const apiUser = await updateUserApi(id, { status });
     return userFromApi(apiUser);
   },
 };

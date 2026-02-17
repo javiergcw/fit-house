@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { User, Mail, Phone, FileText, MapPin, CreditCard, Ticket, ArrowLeft } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { User, Mail, Phone, FileText, MapPin, Shield, ToggleLeft, ArrowLeft } from 'lucide-react';
 import { getUserDetail } from '../useCases/getUserDetail.js';
 
 function Avatar({ name, size = 64 }) {
@@ -28,13 +27,11 @@ function Avatar({ name, size = 64 }) {
   );
 }
 
-export default function UserDetail() {
+export default function UsuarioDetail() {
   const { id } = useParams();
-  const { getPurchasesByUser, getActiveMembershipForUser, getMembership } = useData();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   const timeoutRef = useRef(null);
 
   useEffect(() => {
@@ -44,8 +41,6 @@ export default function UserDetail() {
     setLoading(true);
     setError(null);
 
-    // Retrasar la petición un tick: en Strict Mode el primer efecto se limpia antes de que se ejecute,
-    // así solo la segunda ejecución llega a hacer la petición → 1 sola en la pestaña Red.
     timeoutRef.current = setTimeout(() => {
       getUserDetail(id, { signal })
         .then((data) => {
@@ -69,9 +64,6 @@ export default function UserDetail() {
       controller.abort();
     };
   }, [id]);
-
-  const purchases = id ? getPurchasesByUser(id) : [];
-  const active = id ? getActiveMembershipForUser(id) : null;
 
   if (loading) {
     return (
@@ -99,7 +91,7 @@ export default function UserDetail() {
 
   const infoRows = [
     { icon: Mail, label: 'Email', value: user.email },
-    { icon: Phone, label: 'Teléfono', value: user.telefono },
+    { icon: Phone, label: 'Teléfono', value: user.telefono ?? user.phone },
     { icon: FileText, label: 'Documento', value: user.documento },
     { icon: MapPin, label: 'Dirección', value: user.direccion },
   ];
@@ -112,10 +104,22 @@ export default function UserDetail() {
       </Link>
 
       <div className="user-detail-header card">
-        <Avatar name={user.nombre} size={80} />
+        <Avatar name={user.nombre ?? user.name} size={80} />
         <div className="user-detail-header-text">
-          <h1 className="page-title" style={{ marginBottom: '0.25rem' }}>{user.nombre || 'Sin nombre'}</h1>
+          <h1 className="page-title" style={{ marginBottom: '0.25rem' }}>
+            {(user.nombre ?? user.name) || 'Sin nombre'}
+          </h1>
           <p className="page-subtitle" style={{ margin: 0 }}>Detalle del usuario</p>
+          <div className="usuario-detail-badges" style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span className="badge secondary">
+              <Shield size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+              {user.role ?? '—'}
+            </span>
+            <span className={`badge ${user.status === 'active' ? 'success' : 'danger'}`}>
+              <ToggleLeft size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+              {user.status === 'active' ? 'Activo' : 'Inactivo'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -139,70 +143,7 @@ export default function UserDetail() {
             )}
           </ul>
         </section>
-
-        <section className="card">
-          <h3 className="section-title">
-            <CreditCard size={18} />
-            Membresía actual
-          </h3>
-          {active ? (
-            <div className="membership-status membership-active">
-              <span className="badge success">Activa</span>
-              <strong>{active.membership?.nombre}</strong>
-              <span className="membership-days">{active.daysLeft} días restantes</span>
-              <span className="membership-date">Válida hasta {new Date(active.sale.fechaFin).toLocaleDateString('es')}</span>
-            </div>
-          ) : (
-            <div className="membership-status membership-inactive">
-              <span className="badge danger">Sin membresía activa</span>
-            </div>
-          )}
-        </section>
       </div>
-
-      <section className="card">
-        <h3 className="section-title">
-          <Ticket size={18} />
-          Historial de compras
-        </h3>
-        {purchases.length === 0 ? (
-          <p className="info-muted">No tiene compras registradas</p>
-        ) : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Fecha compra</th>
-                  <th>Membresía</th>
-                  <th>Inicio</th>
-                  <th>Fin</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchases.map((s) => {
-                  const m = getMembership(s.membershipId);
-                  const end = new Date(s.fechaFin);
-                  const isActive = new Date() <= end;
-                  return (
-                    <tr key={s.id}>
-                      <td>{new Date(s.fechaCompra).toLocaleDateString('es')}</td>
-                      <td>{m?.nombre ?? '-'}</td>
-                      <td>{new Date(s.fechaInicio).toLocaleDateString('es')}</td>
-                      <td>{new Date(s.fechaFin).toLocaleDateString('es')}</td>
-                      <td>
-                        <span className={`badge ${isActive ? 'success' : 'danger'}`}>
-                          {isActive ? 'Activa' : 'Vencida'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
     </div>
   );
 }

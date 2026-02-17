@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Tooltip,
   ResponsiveContainer,
@@ -13,8 +13,8 @@ import {
   Area,
 } from 'recharts';
 import { Calendar, TrendingUp, DollarSign, Users, Package, FileText, ShoppingCart, ChevronLeft, ChevronRight, Search, Hash, FileDown } from 'lucide-react';
-import { useData } from '../context/DataContext';
 import { exportToExcelMultiSheet } from '../utils/exportExcel';
+import { getReport } from '../useCases/getReport.js';
 
 function getDefaultRange() {
   const end = new Date();
@@ -32,99 +32,48 @@ function formatCOP(n) {
 }
 
 export default function Reports() {
-  const { sales, getUser, getMembership } = useData();
   const [range, setRange] = useState(getDefaultRange());
   const [appliedRange, setAppliedRange] = useState(range);
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [reportError, setReportError] = useState(null);
   const [productsPage, setProductsPage] = useState(1);
   const [productsPageSize, setProductsPageSize] = useState(10);
   const [productNameFilter, setProductNameFilter] = useState('');
   const [productQuantityMin, setProductQuantityMin] = useState('');
   const [productQuantityMax, setProductQuantityMax] = useState('');
 
-  const filteredSales = useMemo(() => {
-    const start = new Date(appliedRange.start);
-    const end = new Date(appliedRange.end);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-    return sales.filter((s) => {
-      const d = new Date(s.fechaCompra);
-      return d >= start && d <= end;
-    });
-  }, [sales, appliedRange]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setReportError(null);
+    getReport(appliedRange.start, appliedRange.end)
+      .then((d) => {
+        if (!cancelled) setReportData(d);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setReportError(err.message || 'Error al generar el informe');
+          setReportData(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [appliedRange.start, appliedRange.end]);
 
   const applyReport = (e) => {
     e.preventDefault();
     setAppliedRange(range);
   };
 
-  const salesByDay = useMemo(() => {
-    if (filteredSales.length === 0) return [];
-    const start = new Date(appliedRange.start);
-    const end = new Date(appliedRange.end);
-    const byDay = {};
-    const d = new Date(start);
-    while (d <= end) {
-      const key = d.toISOString().slice(0, 10);
-      byDay[key] = { fecha: key, label: d.toLocaleDateString('es', { day: '2-digit', month: 'short' }), ventas: 0, ingresos: 0 };
-      d.setDate(d.getDate() + 1);
-    }
-    filteredSales.forEach((s) => {
-      const key = (s.fechaCompra || '').slice(0, 10);
-      if (byDay[key]) {
-        byDay[key].ventas += 1;
-        const m = getMembership(s.membershipId);
-        const precio = Number(m?.precio) || 0;
-        byDay[key].ingresos += precio;
-      }
-    });
-    return Object.values(byDay).sort((a, b) => a.fecha.localeCompare(b.fecha));
-  }, [filteredSales, appliedRange, getMembership]);
-
-  const topPayers = useMemo(() => {
-    const byUser = {};
-    filteredSales.forEach((s) => {
-      const uid = s.userId;
-      if (!byUser[uid]) byUser[uid] = { userId: uid, total: 0, count: 0 };
-      const m = getMembership(s.membershipId);
-      const precio = Number(m?.precio) || 0;
-      byUser[uid].total += precio;
-      byUser[uid].count += 1;
-    });
-    return Object.values(byUser)
-      .map((o) => ({ ...o, nombre: getUser(o.userId)?.nombre || getUser(o.userId)?.email || 'Sin nombre' }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-  }, [filteredSales, getUser, getMembership]);
-
-  const topProducts = useMemo(() => {
-    const byProduct = {};
-    filteredSales.forEach((s) => {
-      const mid = s.membershipId;
-      if (!byProduct[mid]) byProduct[mid] = { membershipId: mid, count: 0, ingresos: 0 };
-      const m = getMembership(mid);
-      const precio = Number(m?.precio) || 0;
-      byProduct[mid].count += 1;
-      byProduct[mid].ingresos += precio;
-      byProduct[mid].nombre = m?.nombre || 'Membresía';
-    });
-    return Object.values(byProduct)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }, [filteredSales, getMembership]);
-
-  const productsBySales = useMemo(() => {
-    const byProduct = {};
-    filteredSales.forEach((s) => {
-      const mid = s.membershipId;
-      if (!byProduct[mid]) byProduct[mid] = { membershipId: mid, count: 0, ingresos: 0 };
-      const m = getMembership(mid);
-      const precio = Number(m?.precio) || 0;
-      byProduct[mid].count += 1;
-      byProduct[mid].ingresos += precio;
-      byProduct[mid].nombre = m?.nombre || 'Membresía';
-    });
-    return Object.values(byProduct).sort((a, b) => b.count - a.count);
-  }, [filteredSales, getMembership]);
+  const salesByDay = reportData?.salesByDay ?? [];
+  const topPayers = reportData?.topCustomers ?? [];
+  const productsBySales = reportData?.salesByProduct ?? [];
+  const pieProducts = reportData?.pieProducts ?? [];
+  const totalRevenue = reportData?.totalRevenue ?? 0;
+  const uniqueClients = reportData?.uniqueCustomersCount ?? 0;
 
   const productsFiltered = useMemo(() => {
     let list = productsBySales;
@@ -158,48 +107,22 @@ export default function Reports() {
     setProductsPage(1);
   };
 
-  const pieProducts = useMemo(() => {
-    return topProducts.map((p, i) => ({ name: p.nombre, value: p.count, color: COLORS[i % COLORS.length] }));
-  }, [topProducts]);
-
-  const totalRevenue = useMemo(() => {
-    return filteredSales.reduce((sum, s) => {
-      const m = getMembership(s.membershipId);
-      return sum + (Number(m?.precio) || 0);
-    }, 0);
-  }, [filteredSales, getMembership]);
-
-  const uniqueClients = useMemo(() => {
-    const set = new Set(filteredSales.map((s) => s.userId));
-    return set.size;
-  }, [filteredSales]);
-
-  const hasData = filteredSales.length > 0;
+  const hasData = reportData != null && (reportData.salesQuantity > 0 || productsBySales.length > 0 || salesByDay.length > 0);
 
   const handleExportExcel = () => {
-    const ventasRows = filteredSales.map((s) => {
-      const u = getUser(s.userId);
-      const m = getMembership(s.membershipId);
-      const activa = new Date() <= new Date(s.fechaFin);
-      return {
-        Usuario: u?.nombre ?? '',
-        Email: u?.email ?? '',
-        Membresía: m?.nombre ?? '',
-        'Fecha compra': s.fechaCompra ? new Date(s.fechaCompra).toLocaleDateString('es') : '',
-        'Fecha inicio': s.fechaInicio ? new Date(s.fechaInicio).toLocaleDateString('es') : '',
-        'Fecha fin': s.fechaFin ? new Date(s.fechaFin).toLocaleDateString('es') : '',
-        Estado: activa ? 'Activa' : 'Vencida',
-      };
-    });
     const productosRows = productsFiltered.map((p) => ({
       'Producto / Membresía': p.nombre ?? '',
       'Cantidad vendida': p.count,
       'Ingresos (COP)': p.ingresos,
     }));
+    const clientesRows = topPayers.map((c) => ({
+      Cliente: c.nombre ?? '',
+      'Total pagado (COP)': c.total,
+    }));
     exportToExcelMultiSheet(
       [
-        { name: 'Ventas del periodo', data: ventasRows },
         { name: 'Ventas por producto', data: productosRows },
+        { name: 'Top clientes', data: clientesRows },
       ],
       `informe-${appliedRange.start}-${appliedRange.end}`
     );
@@ -241,7 +164,15 @@ export default function Reports() {
         </div>
       </form>
 
-      {!hasData ? (
+      {loading ? (
+        <div className="card">
+          <p className="info-muted">Generando informe…</p>
+        </div>
+      ) : reportError ? (
+        <div className="card">
+          <p className="info-muted" style={{ color: 'var(--fit-danger, #ef5350)' }}>{reportError}</p>
+        </div>
+      ) : !hasData ? (
         <div className="card empty-state-card">
           <div className="empty-state-icon">
             <TrendingUp size={40} strokeWidth={1.2} />
@@ -260,7 +191,7 @@ export default function Reports() {
               </div>
               <div>
                 <span className="report-card-label">Ventas</span>
-                <span className="report-card-value">{filteredSales.length}</span>
+                <span className="report-card-value">{reportData?.salesQuantity ?? 0}</span>
               </div>
             </div>
             <div className="report-card card">
@@ -278,7 +209,7 @@ export default function Reports() {
               </div>
               <div>
                 <span className="report-card-label">Clientes únicos</span>
-                <span className="report-card-value">{uniqueClients}</span>
+                <span className="report-card-value">{reportData?.uniqueCustomersCount ?? 0}</span>
               </div>
             </div>
           </div>
@@ -347,7 +278,7 @@ export default function Reports() {
                         </thead>
                         <tbody>
                           {productsPaginated.map((p) => (
-                            <tr key={p.membershipId}>
+                            <tr key={p.membershipId ?? p.product ?? p.nombre}>
                               <td className="report-products-td-name">{p.nombre}</td>
                               <td className="report-products-td-num">{p.count}</td>
                               <td className="report-products-td-num report-products-td-ingresos">{formatCOP(p.ingresos)}</td>
@@ -460,10 +391,10 @@ export default function Reports() {
                 ) : (
                   <ol className="top-payers-list">
                     {topPayers.map((p, i) => (
-                      <li key={p.userId} className="top-payers-item">
+                      <li key={p.customer_id ?? p.userId ?? i} className="top-payers-item">
                         <span className="top-payers-rank">{i + 1}</span>
                         <span className="top-payers-name">{p.nombre}</span>
-                        <span className="top-payers-count">{p.count} {p.count === 1 ? 'compra' : 'compras'}</span>
+                        <span className="top-payers-count">{p.count ?? 1} {(p.count ?? 1) === 1 ? 'compra' : 'compras'}</span>
                         <span className="top-payers-total">{formatCOP(p.total)}</span>
                       </li>
                     ))}

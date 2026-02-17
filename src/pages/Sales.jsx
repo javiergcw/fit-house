@@ -1,142 +1,118 @@
-import { useState } from 'react';
-import { ShoppingCart, Plus, User, CreditCard, Calendar, Pencil, Trash2, Search, X, FileDown } from 'lucide-react';
-import ActionIcon from '../components/ActionIcon';
-import { useData } from '../context/DataContext';
+import { useState, useEffect } from 'react';
+import { ShoppingCart, CreditCard, Calendar, Search, X, FileDown, ChevronLeft, ChevronRight, DollarSign, User } from 'lucide-react';
 import { exportToExcel } from '../utils/exportExcel';
+import { getSalesList } from '../useCases/getSalesList.js';
+import { getMembershipsList } from '../useCases/getMembershipsList.js';
 
-const initialFilters = { usuario: '', membresia: '', estado: '' }; // estado: '' | 'activa' | 'vencida'
+const initialFilters = { status: '', user_name: '', membership_id: '', date_from: '', date_to: '' };
 
-function matchSale(sale, filters, getUser, getMembership) {
-  const u = getUser(sale.userId);
-  const m = getMembership(sale.membershipId);
-  const usuarioStr = (filters.usuario || '').trim().toLowerCase();
-  const membresiaStr = (filters.membersia || '').trim().toLowerCase();
-  const estado = (filters.estado || '').trim();
-  if (usuarioStr && !(u?.nombre || u?.email || '').toLowerCase().includes(usuarioStr)) return false;
-  if (membresiaStr && !(m?.nombre || '').toLowerCase().includes(membresiaStr)) return false;
-  if (estado) {
-    const active = new Date() <= new Date(sale.fechaFin);
-    if (estado === 'activa' && !active) return false;
-    if (estado === 'vencida' && active) return false;
-  }
+function matchSale(sale, filters) {
+  const statusFilter = (filters.status || '').trim().toLowerCase();
+  if (statusFilter && (sale.status || '').toLowerCase() !== statusFilter) return false;
   return true;
 }
 
-function Avatar({ name, size = 36 }) {
-  const initial = (name || '?').trim().charAt(0).toUpperCase();
-  return (
-    <div
-      className="avatar"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        background: 'var(--fit-primary)',
-        color: '#0d0d0d',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: 600,
-        fontSize: size * 0.4,
-        flexShrink: 0,
-      }}
-    >
-      {initial}
-    </div>
-  );
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function Sales() {
-  const { users, memberships, sales, addSale, updateSale, deleteSale, getMembership, getUser } = useData();
-  const [modal, setModal] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ userId: '', membershipId: '', fechaInicio: '', fechaFin: '' });
+  const [sales, setSales] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, total_pages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
+  const [appliedUserName, setAppliedUserName] = useState('');
+  const [appliedMembershipId, setAppliedMembershipId] = useState('');
+  const [appliedDateFrom, setAppliedDateFrom] = useState('');
+  const [appliedDateTo, setAppliedDateTo] = useState('');
+  const [membershipsList, setMembershipsList] = useState([]);
 
-  const filteredSales = [...sales].reverse().filter((s) => matchSale(s, filters, getUser, getMembership));
-  const hasActiveFilters = Object.values(filters).some((v) => (v || '').trim() !== '');
-  const clearFilters = () => setFilters(initialFilters);
+  useEffect(() => {
+    let cancelled = false;
+    getMembershipsList({ page: 1, limit: 100 })
+      .then((res) => {
+        if (!cancelled) setMembershipsList(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMembershipsList([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-  const openCreate = () => {
-    const today = new Date().toISOString().slice(0, 10);
-    setEditingId(null);
-    setForm({
-      userId: '',
-      membershipId: '',
-      fechaInicio: today,
-      fechaFin: today,
-    });
-    setModal(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    const params = { page: pagination.page, limit: pagination.limit };
+    if (appliedUserName) params.user_name = appliedUserName;
+    if (appliedMembershipId) params.membership_id = appliedMembershipId;
+    if (appliedDateFrom) params.date_from = appliedDateFrom;
+    if (appliedDateTo) params.date_to = appliedDateTo;
+    getSalesList(params)
+      .then((res) => {
+        if (!cancelled) {
+          setSales(res.data ?? []);
+          setPagination((p) => ({ ...p, ...res.pagination }));
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError(err.message || 'Error al cargar ventas');
+          setSales([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [pagination.page, pagination.limit, appliedUserName, appliedMembershipId, appliedDateFrom, appliedDateTo]);
+
+  const handleSearch = () => {
+    setAppliedUserName((filters.user_name || '').trim());
+    setAppliedMembershipId((filters.membership_id || '').trim());
+    setAppliedDateFrom((filters.date_from || '').trim());
+    setAppliedDateTo((filters.date_to || '').trim());
+    setPagination((p) => ({ ...p, page: 1 }));
   };
 
-  const openEdit = (s) => {
-    setEditingId(s.id);
-    setForm({
-      userId: s.userId,
-      membershipId: s.membershipId,
-      fechaInicio: (s.fechaInicio && new Date(s.fechaInicio).toISOString().slice(0, 10)) || '',
-      fechaFin: (s.fechaFin && new Date(s.fechaFin).toISOString().slice(0, 10)) || '',
-    });
-    setModal(true);
+  const goToPage = (page) => {
+    setPagination((prev) => ({ ...prev, page: Math.max(1, Math.min(page, prev.total_pages || 1)) }));
+  };
+  const setLimit = (limit) => {
+    setPagination((prev) => ({ ...prev, limit: Number(limit), page: 1 }));
   };
 
-  const onMembershipChange = (membershipId) => {
-    setForm((f) => {
-      const m = memberships.find((x) => x.id === membershipId);
-      const start = f.fechaInicio ? new Date(f.fechaInicio) : new Date();
-      const end = new Date(start);
-      end.setDate(end.getDate() + (m?.duracionDias ?? 30));
-      return {
-        ...f,
-        membershipId,
-        fechaInicio: start.toISOString().slice(0, 10),
-        fechaFin: end.toISOString().slice(0, 10),
-      };
-    });
+  const filteredSales = sales.filter((s) => matchSale(s, filters));
+  const hasActiveFilters = appliedUserName !== '' || appliedMembershipId !== '' || appliedDateFrom !== '' || appliedDateTo !== '' || (filters.status || '').trim() !== '' || (filters.user_name || '').trim() !== '' || (filters.membership_id || '').trim() !== '' || (filters.date_from || '').trim() !== '' || (filters.date_to || '').trim() !== '';
+  const clearFilters = () => {
+    setFilters(initialFilters);
+    setAppliedUserName('');
+    setAppliedMembershipId('');
+    setAppliedDateFrom('');
+    setAppliedDateTo('');
+    setPagination((p) => ({ ...p, page: 1 }));
   };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const fechaCompra = editingId ? (sales.find((s) => s.id === editingId)?.fechaCompra || new Date().toISOString()) : new Date().toISOString();
-    const data = {
-      userId: form.userId,
-      membershipId: form.membershipId,
-      fechaCompra,
-      fechaInicio: form.fechaInicio,
-      fechaFin: form.fechaFin,
-    };
-    if (editingId) {
-      updateSale(editingId, data);
-    } else {
-      addSale(data);
-    }
-    setModal(false);
-  };
-
-  const handleDelete = (id) => {
-    if (window.confirm('¿Eliminar esta venta?')) {
-      deleteSale(id);
-    }
-  };
-
-  const formatDate = (d) => new Date(d).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const handleExportExcel = () => {
-    const rows = filteredSales.map((s) => {
-      const u = getUser(s.userId);
-      const m = getMembership(s.membershipId);
-      const activa = new Date() <= new Date(s.fechaFin);
-      return {
-        Usuario: u?.nombre ?? '',
-        Email: u?.email ?? '',
-        Membresía: m?.nombre ?? '',
-        'Fecha compra': s.fechaCompra ? new Date(s.fechaCompra).toLocaleDateString('es') : '',
-        'Fecha inicio': s.fechaInicio ? new Date(s.fechaInicio).toLocaleDateString('es') : '',
-        'Fecha fin': s.fechaFin ? new Date(s.fechaFin).toLocaleDateString('es') : '',
-        Estado: activa ? 'Activa' : 'Vencida',
-      };
-    });
+    const rows = filteredSales.map((s) => ({
+      ID: s.id ?? '',
+      'Fecha venta': s.sale_date ? formatDate(s.sale_date) : '',
+      Cliente: (s.customerName || s.customer?.nombre || s.customer?.full_name || s.customer_id) ?? '',
+      Subtotal: s.subtotal ?? '',
+      Total: s.total ?? '',
+      Estado: s.status ?? '',
+    }));
     exportToExcel(rows, `ventas-${new Date().toISOString().slice(0, 10)}`, 'Ventas');
+  };
+
+  const statusLabel = (s) => {
+    const v = (s || '').toLowerCase();
+    if (v === 'paid') return 'Pagada';
+    if (v === 'pending') return 'Pendiente';
+    if (v === 'cancelled') return 'Cancelada';
+    return s || '—';
   };
 
   return (
@@ -153,56 +129,77 @@ export default function Sales() {
               Descargar Excel
             </button>
           )}
-          <button type="button" onClick={openCreate} className="btn-primary-with-icon" title="Registrar nueva venta">
-            <Plus size={18} />
-            Nueva venta
-          </button>
         </div>
       </div>
 
-      {sales.length === 0 ? (
-        <div className="card empty-state-card">
-          <div className="empty-state-icon">
-            <ShoppingCart size={40} strokeWidth={1.2} />
-          </div>
-          <p className="empty-state-title">No hay ventas registradas</p>
-          <p className="empty-state-text">Registra la primera venta: elige usuario y membresía.</p>
-          <button type="button" onClick={openCreate} className="btn-primary-with-icon">
-            <Plus size={18} />
-            Registrar venta
-          </button>
+      {loading ? (
+        <div className="card">
+          <p className="info-muted">Cargando ventas…</p>
+        </div>
+      ) : loadError ? (
+        <div className="card">
+          <p className="info-muted" style={{ color: 'var(--fit-danger, #ef5350)' }}>{loadError}</p>
         </div>
       ) : (
         <>
           <div className="page-filters card">
             <div className="page-filters-row">
               <div className="page-filter-field">
-                <User size={14} />
+                <User size={16} />
                 <input
                   type="text"
-                  placeholder="Usuario"
-                  value={filters.usuario}
-                  onChange={(e) => setFilters((f) => ({ ...f, usuario: e.target.value }))}
+                  placeholder="Nombre del cliente"
+                  value={filters.user_name}
+                  onChange={(e) => setFilters((f) => ({ ...f, user_name: e.target.value }))}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearch())}
+                  aria-label="Nombre del cliente"
                 />
               </div>
               <div className="page-filter-field">
-                <CreditCard size={14} />
-                <input
-                  type="text"
-                  placeholder="Membresía"
-                  value={filters.membersia}
-                  onChange={(e) => setFilters((f) => ({ ...f, membresia: e.target.value }))}
-                />
-              </div>
-              <div className="page-filter-field">
-                <Calendar size={14} />
+                <CreditCard size={16} />
                 <select
-                  value={filters.estado}
-                  onChange={(e) => setFilters((f) => ({ ...f, estado: e.target.value }))}
+                  value={filters.membership_id}
+                  onChange={(e) => setFilters((f) => ({ ...f, membership_id: e.target.value }))}
+                  aria-label="Membresía"
+                >
+                  <option value="">Todas las membresías</option>
+                  {membershipsList.map((m) => (
+                    <option key={m.id} value={m.id}>{m.nombre ?? m.id} ({m.duracionDias ?? m.duration_days ?? 0} días)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="page-filter-field">
+                <Calendar size={16} />
+                <input
+                  type="date"
+                  value={filters.date_from}
+                  onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
+                  aria-label="Desde"
+                />
+              </div>
+              <div className="page-filter-field">
+                <Calendar size={16} />
+                <input
+                  type="date"
+                  value={filters.date_to}
+                  onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
+                  aria-label="Hasta"
+                />
+              </div>
+              <button type="button" className="btn-primary-with-icon" onClick={handleSearch} title="Buscar">
+                <Search size={18} />
+                Buscar
+              </button>
+              <div className="page-filter-field">
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+                  aria-label="Estado"
                 >
                   <option value="">Todos los estados</option>
-                  <option value="activa">Activa</option>
-                  <option value="vencida">Vencida</option>
+                  <option value="paid">Pagada</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="cancelled">Cancelada</option>
                 </select>
               </div>
               {hasActiveFilters && (
@@ -211,98 +208,78 @@ export default function Sales() {
                   Limpiar filtros
                 </button>
               )}
+              <div className="users-pagination-inline">
+                <span>Mostrar</span>
+                <select
+                  value={pagination.limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                  className="users-pagination-select"
+                  aria-label="Elementos por página"
+                >
+                  {[10, 20, 50].map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <span>· Total {pagination.total}</span>
+                <span className="users-pagination-page">Pág. {pagination.page}/{pagination.total_pages || 1}</span>
+                <button
+                  type="button"
+                  className="btn-pagination"
+                  onClick={() => goToPage(pagination.page - 1)}
+                  disabled={pagination.page <= 1 || loading}
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  type="button"
+                  className="btn-pagination"
+                  onClick={() => goToPage(pagination.page + 1)}
+                  disabled={pagination.page >= (pagination.total_pages || 1) || loading}
+                  aria-label="Página siguiente"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="sales-list">
-            {filteredSales.length === 0 ? (
-              <p className="empty-message">Ninguna venta coincide con los filtros.</p>
-            ) : (
-              filteredSales.map((s) => {
-                const u = getUser(s.userId);
-                const m = getMembership(s.membershipId);
-                const end = new Date(s.fechaFin);
-                const active = new Date() <= end;
-                return (
-                  <div key={s.id} className="sale-card card">
-                <div className="sale-card-main">
-                  <div className="sale-card-user">
-                    <Avatar name={u?.nombre} size={40} />
-                    <div>
-                      <span className="sale-card-user-name">{u?.nombre ?? 'Usuario'}</span>
-                      <span className="sale-card-user-email">{u?.email ?? ''}</span>
+          {sales.length === 0 ? (
+            <div className="card empty-state-card">
+              <div className="empty-state-icon">
+                <ShoppingCart size={40} strokeWidth={1.2} />
+              </div>
+              <p className="empty-state-title">No hay ventas registradas</p>
+              <p className="empty-state-text">Las ventas aparecerán aquí.</p>
+            </div>
+          ) : filteredSales.length === 0 ? (
+            <p className="empty-message">Ninguna venta coincide con los filtros.</p>
+          ) : (
+            <div className="sales-list">
+              {filteredSales.map((s) => (
+                <div key={s.id} className="sale-card card">
+                  <div className="sale-card-main">
+                    <div className="sale-card-dates">
+                      <Calendar size={14} />
+                      <span>{formatDate(s.sale_date)}</span>
                     </div>
+                    <div className="sale-card-membership">
+                      <CreditCard size={16} />
+                      <span>Cliente: {(s.customerName || s.customer?.nombre || s.customer?.full_name || s.customer_id) ?? '—'}</span>
+                    </div>
+                    <div className="sale-card-total">
+                      <DollarSign size={16} />
+                      <span>{s.totalFormatted ?? s.total ?? '—'}</span>
+                    </div>
+                    <span className={`badge ${s.status === 'paid' ? 'success' : s.status === 'pending' ? 'secondary' : 'danger'}`}>
+                      {statusLabel(s.status)}
+                    </span>
                   </div>
-                  <div className="sale-card-membership">
-                    <CreditCard size={16} />
-                    <span>{m?.nombre ?? '—'}</span>
-                  </div>
-                  <div className="sale-card-dates">
-                    <Calendar size={14} />
-                    <span>{formatDate(s.fechaInicio)} → {formatDate(s.fechaFin)}</span>
-                  </div>
-                  <span className={`badge ${active ? 'success' : 'danger'}`}>
-                    {active ? 'Activa' : 'Vencida'}
-                  </span>
                 </div>
-                <div className="sale-card-actions">
-                  <ActionIcon icon={Pencil} label="Editar venta" variant="secondary" onClick={() => openEdit(s)} size={16} />
-                  <ActionIcon icon={Trash2} label="Eliminar venta" variant="danger" onClick={() => handleDelete(s.id)} size={16} />
-                </div>
-              </div>
-                );
-              })
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </>
-      )}
-
-      {modal && (
-        <div className="modal-overlay" onClick={() => setModal(false)}>
-          <div className="card modal-card modal-card-wide" onClick={(e) => e.stopPropagation()}>
-            <h3>{editingId ? 'Editar venta' : 'Nueva venta'}</h3>
-            <form onSubmit={handleSubmit} className="form-sale">
-              <div className="form-row">
-                <div className="form-group">
-                  <label><User size={14} /> Usuario</label>
-                  <select value={form.userId} onChange={(e) => setForm((f) => ({ ...f, userId: e.target.value }))} required>
-                    <option value="">Seleccionar usuario...</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>{u.nombre || u.email || u.id}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label><CreditCard size={14} /> Membresía</label>
-                  <select
-                    value={form.membershipId}
-                    onChange={(e) => onMembershipChange(e.target.value)}
-                    required
-                  >
-                    <option value="">Seleccionar membresía...</option>
-                    {memberships.map((m) => (
-                      <option key={m.id} value={m.id}>{m.nombre} ({m.duracionDias} días)</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label><Calendar size={14} /> Fecha inicio</label>
-                  <input type="date" value={form.fechaInicio} onChange={(e) => setForm((f) => ({ ...f, fechaInicio: e.target.value }))} required />
-                </div>
-                <div className="form-group">
-                  <label><Calendar size={14} /> Fecha fin</label>
-                  <input type="date" value={form.fechaFin} onChange={(e) => setForm((f) => ({ ...f, fechaFin: e.target.value }))} required />
-                </div>
-              </div>
-              <div className="form-actions">
-                <button type="submit">Guardar</button>
-                <button type="button" className="secondary" onClick={() => setModal(false)}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   );

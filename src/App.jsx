@@ -4,8 +4,10 @@ import { DataProvider } from './context/DataContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import Users from './pages/Users';
-import UserDetail from './pages/UserDetail';
+import Customers from './pages/Customers';
+import CustomerDetail from './pages/CustomerDetail';
+import Usuarios from './pages/Usuarios';
+import UsuarioDetail from './pages/UsuarioDetail';
 import Memberships from './pages/Memberships';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
@@ -30,8 +32,10 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="usuarios" element={<Users />} />
-        <Route path="usuarios/:id" element={<UserDetail />} />
+        <Route path="customers" element={<Customers />} />
+        <Route path="customers/:id" element={<CustomerDetail />} />
+        <Route path="usuarios" element={<Usuarios />} />
+        <Route path="usuarios/:id" element={<UsuarioDetail />} />
         <Route path="membresias" element={<Memberships />} />
         <Route path="ventas" element={<Sales />} />
         <Route path="informes" element={<Reports />} />

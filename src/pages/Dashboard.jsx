@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -13,7 +13,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { Users, CreditCard, ShoppingCart, TrendingUp } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { getDashboard } from '../useCases/getDashboard.js';
 
 const CARD_COLORS = {
   users: 'var(--fit-primary)',
@@ -23,51 +23,65 @@ const CARD_COLORS = {
 };
 
 export default function Dashboard() {
-  const { users, memberships, sales, getUser, getMembership } = useData();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const thisMonth = new Date().getMonth();
-  const thisYear = new Date().getFullYear();
-  const salesThisMonth = sales.filter((s) => {
-    const d = new Date(s.fechaCompra);
-    return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
-  });
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getDashboard()
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err.message || 'Error al cargar el dashboard');
+          setData(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-  const salesByMonth = useMemo(() => {
-    const byMonth = {};
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      byMonth[key] = { mes: d.toLocaleDateString('es', { month: 'short', year: '2-digit' }), ventas: 0 };
-    }
-    sales.forEach((s) => {
-      const d = new Date(s.fechaCompra);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (byMonth[key]) byMonth[key].ventas += 1;
-    });
-    return Object.values(byMonth);
-  }, [sales]);
-
-  const activeVsExpired = useMemo(() => {
-    const today = new Date();
-    let active = 0;
-    let expired = 0;
-    sales.forEach((s) => {
-      if (new Date(s.fechaFin) >= today) active += 1;
-      else expired += 1;
-    });
-    return [
-      { name: 'Activas', value: active, color: '#81c784' },
-      { name: 'Vencidas', value: expired, color: '#e57373' },
-    ].filter((d) => d.value > 0);
-  }, [sales]);
+  const stats = data?.stats ?? { users: 0, memberships_total: 0, total_sales: 0, sales_this_month: 0 };
+  const salesByMonth = data?.salesByMonth ?? [];
+  const activeVsExpired = data?.activeVsExpired ?? [];
+  const lastSalesRows = data?.lastSalesRows ?? [];
 
   const cards = [
-    { title: 'Usuarios', value: users.length, icon: Users, color: CARD_COLORS.users },
-    { title: 'Membresías', value: memberships.length, icon: CreditCard, color: CARD_COLORS.memberships },
-    { title: 'Ventas totales', value: sales.length, icon: ShoppingCart, color: CARD_COLORS.sales },
-    { title: 'Ventas este mes', value: salesThisMonth.length, icon: TrendingUp, color: CARD_COLORS.month },
+    { title: 'Usuarios', value: stats.users, icon: Users, color: CARD_COLORS.users },
+    { title: 'Membresías', value: stats.memberships_total, icon: CreditCard, color: CARD_COLORS.memberships },
+    { title: 'Ventas totales', value: stats.total_sales, icon: ShoppingCart, color: CARD_COLORS.sales },
+    { title: 'Ventas este mes', value: stats.sales_this_month, icon: TrendingUp, color: CARD_COLORS.month },
   ];
+
+  if (loading) {
+    return (
+      <div className="dashboard-page">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-subtitle">Resumen de tu negocio</p>
+        <div className="card">
+          <p className="info-muted">Cargando dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-page">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-subtitle">Resumen de tu negocio</p>
+        <div className="card">
+          <p className="info-muted" style={{ color: 'var(--fit-danger, #ef5350)' }}>{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-page">
@@ -158,7 +172,7 @@ export default function Dashboard() {
           <ShoppingCart size={18} />
           Últimas ventas
         </h3>
-        {sales.length === 0 ? (
+        {lastSalesRows.length === 0 ? (
           <p className="empty-message">No hay ventas registradas</p>
         ) : (
           <div className="table-container">
@@ -172,21 +186,23 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {[...sales].reverse().slice(0, 8).map((s) => {
-                  const u = getUser(s.userId);
-                  const m = getMembership(s.membershipId);
-                  const end = new Date(s.fechaFin);
+                {lastSalesRows.slice(0, 8).map((row) => {
+                  const vigenciaDate = row.vigencia ? new Date(row.vigencia) : null;
                   const today = new Date();
-                  const active = today <= end;
+                  const active = vigenciaDate && today <= vigenciaDate;
                   return (
-                    <tr key={s.id}>
-                      <td>{new Date(s.fechaCompra).toLocaleDateString('es')}</td>
-                      <td>{u?.nombre ?? '-'}</td>
-                      <td>{m?.nombre ?? '-'}</td>
+                    <tr key={row.id}>
+                      <td>{row.fecha || '—'}</td>
+                      <td>{row.usuario}</td>
+                      <td>{row.membresia}</td>
                       <td>
-                        <span className={`badge ${active ? 'success' : 'danger'}`}>
-                          {active ? 'Activa' : 'Vencida'}
-                        </span>
+                        {row.vigencia ? (
+                          <span className={`badge ${active ? 'success' : 'danger'}`}>
+                            {active ? 'Activa' : 'Vencida'}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                     </tr>
                   );

@@ -53,3 +53,20 @@ export async function createUser(payload) {
 
   return response.data;
 }
+
+/**
+ * PUT /users/:id
+ * @param {string} id - ID del usuario
+ * @param {object} payload - { status: 'active' | 'inactive' }
+ * @returns {Promise<object>} Usuario actualizado (objeto plano del backend)
+ */
+export async function updateUser(id, payload) {
+  if (!id) throw new Error('ID de usuario requerido');
+  const response = await http.put(`/users/${encodeURIComponent(id)}`, payload);
+
+  if (!response.success || response.data == null) {
+    throw new Error(response.message || 'Error al actualizar usuario');
+  }
+
+  return response.data;
+}
