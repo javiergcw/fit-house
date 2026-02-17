@@ -1,6 +1,8 @@
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { User, Mail, Phone, FileText, MapPin, CreditCard, Calendar, Ticket, ArrowLeft } from 'lucide-react';
+import { User, Mail, Phone, FileText, MapPin, CreditCard, Ticket, ArrowLeft } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { getUserDetail } from '../useCases/getUserDetail.js';
 
 function Avatar({ name, size = 64 }) {
   const initial = (name || '?').trim().charAt(0).toUpperCase();
@@ -28,15 +30,65 @@ function Avatar({ name, size = 64 }) {
 
 export default function UserDetail() {
   const { id } = useParams();
-  const { getUser, getPurchasesByUser, getActiveMembershipForUser, getMembership } = useData();
-  const user = getUser(id);
-  const purchases = getPurchasesByUser(id);
-  const active = getActiveMembershipForUser(id);
+  const { getPurchasesByUser, getActiveMembershipForUser, getMembership } = useData();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  if (!user) {
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    // Retrasar la petición un tick: en Strict Mode el primer efecto se limpia antes de que se ejecute,
+    // así solo la segunda ejecución llega a hacer la petición → 1 sola en la pestaña Red.
+    timeoutRef.current = setTimeout(() => {
+      getUserDetail(id, { signal })
+        .then((data) => {
+          if (!cancelled) setUser(data);
+        })
+        .catch((err) => {
+          if (err.name === 'AbortError') return;
+          if (!cancelled) {
+            setError(err.message || 'Error al cargar usuario');
+            setUser(null);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      controller.abort();
+    };
+  }, [id]);
+
+  const purchases = id ? getPurchasesByUser(id) : [];
+  const active = id ? getActiveMembershipForUser(id) : null;
+
+  if (loading) {
     return (
       <div className="card">
-        <p>Usuario no encontrado.</p>
+        <p className="info-muted">Cargando usuario…</p>
+        <Link to="/usuarios" className="btn-back">
+          <ArrowLeft size={16} />
+          Volver a usuarios
+        </Link>
+      </div>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <div className="card">
+        <p>{error || 'Usuario no encontrado.'}</p>
         <Link to="/usuarios" className="btn-back">
           <ArrowLeft size={16} />
           Volver a usuarios

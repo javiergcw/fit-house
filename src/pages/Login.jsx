@@ -1,21 +1,28 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { loginUser } from '../useCases/loginUser.js';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const { loginWithData } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (login(email, password)) {
+    setLoading(true);
+    try {
+      const data = await loginUser({ email, password });
+      loginWithData(data);
       navigate('/', { replace: true });
-    } else {
-      setError('Ingresa email y contraseña');
+    } catch (err) {
+      setError(err.message || 'Error al iniciar sesión');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -51,7 +58,9 @@ export default function Login() {
             />
           </div>
           {error && <p style={{ color: '#ef5350', marginBottom: '0.75rem', fontSize: '0.8rem' }}>{error}</p>}
-          <button type="submit" style={{ width: '100%', marginTop: '0.25rem' }}>Entrar</button>
+          <button type="submit" style={{ width: '100%', marginTop: '0.25rem' }} disabled={loading}>
+            {loading ? 'Entrando…' : 'Entrar'}
+          </button>
         </form>
       </div>
     </div>

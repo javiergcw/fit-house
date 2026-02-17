@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   User,
@@ -9,6 +9,7 @@ import {
   CreditCard,
   Calendar,
   ChevronRight,
+  ChevronLeft,
   Pencil,
   UserPlus,
   Ticket,
@@ -21,8 +22,10 @@ import {
 import ActionIcon from '../components/ActionIcon';
 import { useData } from '../context/DataContext';
 import { exportToExcel } from '../utils/exportExcel';
+import { getUsersList } from '../useCases/getUsersList.js';
+import { createUser as createUserUseCase } from '../useCases/createUser.js';
 
-const initialForm = { nombre: '', email: '', telefono: '', documento: '', direccion: '' };
+const initialForm = { nombre: '', email: '', telefono: '', documento: '', direccion: '', password: '' };
 
 function Avatar({ name, size = 40 }) {
   const initial = (name || '?').trim().charAt(0).toUpperCase();
@@ -174,14 +177,52 @@ function matchUser(u, filters) {
 }
 
 export default function Users() {
-  const { users, memberships, addUser, updateUser, deleteUser, addSale, getActiveMembershipForUser, getMembership, getPurchasesByUser } = useData();
+  const { memberships, updateUser, addSale, getActiveMembershipForUser, getMembership, getPurchasesByUser } = useData();
+  const [users, setUsers] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, total_pages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [modal, setModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(initialForm);
+  const [formError, setFormError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
   const [saleModal, setSaleModal] = useState(false);
   const [saleForm, setSaleForm] = useState(initialSaleForm);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    getUsersList({ page: pagination.page, limit: pagination.limit })
+      .then((res) => {
+        if (!cancelled) {
+          setUsers(res.data ?? []);
+          setPagination((p) => ({ ...p, ...res.pagination }));
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError(err.message || 'Error al cargar usuarios');
+          setUsers([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [pagination.page, pagination.limit]);
+
+  const goToPage = (page) => {
+    const p = Math.max(1, Math.min(page, pagination.total_pages || 1));
+    setPagination((prev) => ({ ...prev, page: p }));
+  };
+
+  const setLimit = (limit) => {
+    setPagination((prev) => ({ ...prev, limit: Number(limit), page: 1 }));
+  };
 
   const filteredUsers = users.filter((u) => matchUser(u, filters));
   const hasActiveFilters = Object.values(filters).some((v) => (v || '').trim() !== '');
@@ -192,6 +233,7 @@ export default function Users() {
   const openCreate = () => {
     setEditingId(null);
     setForm(initialForm);
+    setFormError('');
     setModal(true);
   };
 
@@ -203,18 +245,32 @@ export default function Users() {
       telefono: u.telefono ?? '',
       documento: u.documento ?? '',
       direccion: u.direccion ?? '',
+      password: '',
     });
+    setFormError('');
     setModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
     if (editingId) {
       updateUser(editingId, form);
-    } else {
-      addUser(form);
+      setModal(false);
+      return;
     }
-    setModal(false);
+    setSubmitting(true);
+    try {
+      await createUserUseCase(form);
+      setModal(false);
+      const res = await getUsersList({ page: pagination.page, limit: pagination.limit });
+      setUsers(res.data ?? []);
+      setPagination((p) => ({ ...p, ...res.pagination }));
+    } catch (err) {
+      setFormError(err.message || 'Error al crear usuario');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleExportExcel = () => {
@@ -286,7 +342,7 @@ export default function Users() {
         </div>
       </div>
 
-      {users.length > 0 && (
+      {!loading && !loadError && (
         <div className="users-filters card">
           <div className="users-filters-row">
             <div className="users-filter-field">
@@ -331,6 +387,39 @@ export default function Users() {
                 Limpiar filtros
               </button>
             )}
+            <div className="users-pagination-inline">
+              <span>Mostrar</span>
+              <select
+                value={pagination.limit}
+                onChange={(e) => setLimit(e.target.value)}
+                className="users-pagination-select"
+                aria-label="Elementos por página"
+              >
+                {[10, 20, 50].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span>· Total {pagination.total}</span>
+              <span className="users-pagination-page">Pág. {pagination.page}/{pagination.total_pages || 1}</span>
+              <button
+                type="button"
+                className="btn-pagination"
+                onClick={() => goToPage(pagination.page - 1)}
+                disabled={pagination.page <= 1 || loading}
+                aria-label="Página anterior"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                type="button"
+                className="btn-pagination"
+                onClick={() => goToPage(pagination.page + 1)}
+                disabled={pagination.page >= (pagination.total_pages || 1) || loading}
+                aria-label="Página siguiente"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -338,7 +427,11 @@ export default function Users() {
       <div className="users-layout">
         <div className="users-list card">
           <div className="users-list-header">Lista de usuarios</div>
-          {users.length === 0 ? (
+          {loading ? (
+            <p className="empty-message">Cargando usuarios…</p>
+          ) : loadError ? (
+            <p className="empty-message" style={{ color: 'var(--fit-danger, #ef5350)' }}>{loadError}</p>
+          ) : users.length === 0 ? (
             <p className="empty-message">No hay usuarios. Crea uno para empezar.</p>
           ) : filteredUsers.length === 0 ? (
             <p className="empty-message">Ningún usuario coincide con los filtros.</p>
@@ -384,14 +477,23 @@ export default function Users() {
           <div className="card modal-card" onClick={(e) => e.stopPropagation()}>
             <h3>{editingId ? 'Editar usuario' : 'Nuevo usuario'}</h3>
             <form onSubmit={handleSubmit}>
+              {formError && (
+                <p className="info-muted" style={{ color: 'var(--fit-danger, #ef5350)', marginBottom: '0.75rem' }}>{formError}</p>
+              )}
               <div className="form-group">
                 <label>Nombre</label>
                 <input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} required placeholder="Nombre completo" />
               </div>
               <div className="form-group">
                 <label>Email</label>
-                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="email@ejemplo.com" />
+                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required placeholder="email@ejemplo.com" />
               </div>
+              {!editingId && (
+                <div className="form-group">
+                  <label>Contraseña</label>
+                  <input type="password" value={form.password ?? ''} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required placeholder="••••••••" autoComplete="new-password" />
+                </div>
+              )}
               <div className="form-group">
                 <label>Teléfono</label>
                 <input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="600 000 000" />
@@ -405,8 +507,8 @@ export default function Users() {
                 <input value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} placeholder="Dirección" />
               </div>
               <div className="form-actions">
-                <button type="submit">Guardar</button>
-                <button type="button" className="secondary" onClick={() => setModal(false)}>Cancelar</button>
+                <button type="submit" disabled={submitting}>{submitting ? 'Guardando…' : 'Guardar'}</button>
+                <button type="button" className="secondary" onClick={() => setModal(false)} disabled={submitting}>Cancelar</button>
               </div>
             </form>
           </div>

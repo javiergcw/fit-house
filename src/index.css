@@ -1567,6 +1567,19 @@ tr:hover td {
   flex: 1;
   max-width: 200px;
 }
+@media (min-width: 901px) {
+  .users-filters-row {
+    flex-wrap: nowrap;
+  }
+  .users-filter-field {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
+  .users-pagination-inline {
+    flex-shrink: 0;
+  }
+}
 @media (max-width: 600px) {
   .users-filters-row {
     flex-direction: column;
@@ -1577,6 +1590,9 @@ tr:hover td {
   }
   .users-filter-clear {
     margin-left: 0;
+  }
+  .users-filter-field {
+    min-width: 0;
   }
 }
 .users-filter-field svg {
@@ -1598,6 +1614,51 @@ tr:hover td {
 }
 .users-filter-clear:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.users-pagination-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--fit-text-muted, rgba(255, 255, 255, 0.7));
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.users-pagination-select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  background: var(--fit-bg-elevated, rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+}
+.users-pagination-page {
+  margin-right: 0.15rem;
+}
+.btn-pagination {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--fit-bg-elevated, rgba(255, 255, 255, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-pagination:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.btn-pagination:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Filtros genéricos (Membresías, Ventas) */
@@ -1640,6 +1701,19 @@ tr:hover td {
 }
 .page-filter-clear:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+@media (min-width: 901px) {
+  .page-filters-row {
+    flex-wrap: nowrap;
+  }
+  .page-filter-field {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
+  .page-filters-row .users-pagination-inline {
+    flex-shrink: 0;
+  }
 }
 @media (max-width: 768px) {
   .page-filters-row {
@@ -1761,6 +1835,12 @@ tr:hover td {
   display: flex;
   align-items: center;
   gap: 0.15rem;
+}
+.membership-card-status-row {
+  margin-bottom: 0.5rem;
+}
+.membership-card-status-row .badge {
+  font-size: 0.75rem;
 }
 .membership-card-name {
   font-size: 1.1rem;
