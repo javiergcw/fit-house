@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // En desarrollo, /api/* se reenvía al backend para evitar CORS
       '/api': {
-        target: 'http://144.91.79.105:9091',
+        target: ' https://apifithouse.apptrialhub.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

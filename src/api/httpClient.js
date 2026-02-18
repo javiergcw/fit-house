@@ -3,7 +3,7 @@
  * En desarrollo usa el proxy de Vite (/api) para evitar CORS.
  * En producción usa VITE_API_URL o la URL por defecto del backend.
  */
-const PRODUCTION_BASE_URL = (import.meta.env.VITE_API_URL || 'http://144.91.79.105:9091').replace(/\/$/, '');
+const PRODUCTION_BASE_URL = (import.meta.env.VITE_API_URL || ' https://apifithouse.apptrialhub.com').replace(/\/$/, '');
 const BASE_URL = import.meta.env.DEV ? '/api' : PRODUCTION_BASE_URL;
 
 /**
