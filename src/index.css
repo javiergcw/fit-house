@@ -1786,6 +1786,93 @@ tr:hover td {
   margin: 0 0 1.25rem 0;
 }
 
+/* ----- Expired memberships (membresías vencidas) ----- */
+.expired-memberships-page {
+  max-width: 100%;
+}
+.expired-memberships-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  flex-wrap: wrap;
+}
+.expired-memberships-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--fit-border);
+  background: var(--fit-card-bg);
+  color: var(--fit-text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.expired-memberships-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--fit-text);
+}
+.expired-memberships-tab.active {
+  background: rgba(0, 163, 255, 0.15);
+  color: var(--fit-primary);
+  border-color: var(--fit-primary);
+}
+.expired-memberships-panel {
+  padding: 1rem;
+}
+.expired-memberships-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  color: var(--fit-danger, #ef5350);
+  text-align: center;
+}
+.expired-memberships-error .info-muted {
+  font-size: 0.85rem;
+  color: var(--fit-text-muted);
+}
+.expired-memberships-table {
+  width: 100%;
+}
+.expired-memberships-customer-link {
+  color: var(--fit-primary);
+  text-decoration: none;
+}
+.expired-memberships-customer-link:hover {
+  text-decoration: underline;
+}
+.expired-memberships-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+.expired-memberships-actions .btn-link-sm {
+  margin: 0;
+}
+.expired-memberships-actions .btn-mark-as-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--fit-text-muted);
+  font-size: 0.85rem;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.expired-memberships-actions .btn-mark-as-left:hover:not(:disabled) {
+  color: var(--fit-primary);
+}
+.expired-memberships-actions .btn-mark-as-left:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 /* ----- Memberships page ----- */
 .memberships-page {
   max-width: 100%;

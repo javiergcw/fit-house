@@ -29,6 +29,21 @@ export async function getMemberships(params = {}) {
 }
 
 /**
+ * POST /memberships
+ * @param {object} body - { membership_type, duration_days, price, currency, status }
+ * @returns {Promise<object>} Membresía creada (objeto plano del backend)
+ */
+export async function createMembership(body) {
+  const response = await http.post('/memberships', body);
+
+  if (!response.success || response.data == null) {
+    throw new Error(response.message || 'Error al crear membresía');
+  }
+
+  return response.data;
+}
+
+/**
  * PUT /memberships/:id
  * @param {string} id - ID de la membresía
  * @param {{ status: 'active' | 'inactive' }} body

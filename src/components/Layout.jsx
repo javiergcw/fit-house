@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, UserCog, CreditCard, ShoppingCart, LogOut, PanelLeftClose, PanelLeftOpen, Menu, FileBarChart } from 'lucide-react';
+import { LayoutDashboard, Users, UserCog, CreditCard, ShoppingCart, LogOut, PanelLeftClose, PanelLeftOpen, Menu, FileBarChart, CalendarX2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const SIDEBAR_STORAGE = 'fit-sidebar-collapsed';
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/customers', end: false, icon: Users, label: 'Customers' },
   { to: '/usuarios', end: false, icon: UserCog, label: 'Usuarios' },
   { to: '/membresias', end: false, icon: CreditCard, label: 'Membresías' },
+  { to: '/membresias-vencidas', end: false, icon: CalendarX2, label: 'Membresías vencidas' },
   { to: '/ventas', end: false, icon: ShoppingCart, label: 'Ventas' },
   { to: '/informes', end: false, icon: FileBarChart, label: 'Informes' },
 ];

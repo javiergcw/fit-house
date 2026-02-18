@@ -9,6 +9,7 @@ import CustomerDetail from './pages/CustomerDetail';
 import Usuarios from './pages/Usuarios';
 import UsuarioDetail from './pages/UsuarioDetail';
 import Memberships from './pages/Memberships';
+import ExpiredMemberships from './pages/ExpiredMemberships';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
 import './App.css';
@@ -37,6 +38,7 @@ function AppRoutes() {
         <Route path="usuarios" element={<Usuarios />} />
         <Route path="usuarios/:id" element={<UsuarioDetail />} />
         <Route path="membresias" element={<Memberships />} />
+        <Route path="membresias-vencidas" element={<ExpiredMemberships />} />
         <Route path="ventas" element={<Sales />} />
         <Route path="informes" element={<Reports />} />
       </Route>

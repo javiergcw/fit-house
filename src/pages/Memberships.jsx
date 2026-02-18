@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, Plus, Calendar, DollarSign, Pencil, Trash2, Search, X, ChevronLeft, ChevronRight, Power } from 'lucide-react';
+import { CreditCard, Plus, Calendar, DollarSign, Trash2, Search, X, ChevronLeft, ChevronRight, Power } from 'lucide-react';
 import ActionIcon from '../components/ActionIcon';
 import { useData } from '../context/DataContext';
 import { getMembershipsList } from '../useCases/getMembershipsList.js';
+import { createMembership as createMembershipUseCase } from '../useCases/createMembership.js';
 import { updateMembership as updateMembershipStatus } from '../useCases/updateMembership.js';
 
 const TIPOS = [
@@ -40,6 +41,8 @@ export default function Memberships() {
   const [filters, setFilters] = useState(initialFilters);
   const [statusFilter, setStatusFilter] = useState(''); // '' = todas, 'active', 'inactive'
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +88,7 @@ export default function Memberships() {
   const openCreate = () => {
     setEditingId(null);
     setForm(initialForm);
+    setSubmitError(null);
     setModal(true);
   };
 
@@ -99,19 +103,38 @@ export default function Memberships() {
     setModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const data = {
-      ...form,
-      duracionDias: Number(form.duracionDias) || 30,
-      precio: String(form.precio ?? ''),
-    };
+    setSubmitError(null);
     if (editingId) {
+      const data = {
+        ...form,
+        duracionDias: Number(form.duracionDias) || 30,
+        precio: String(form.precio ?? ''),
+      };
       updateMembership(editingId, data);
-    } else {
-      addMembership(data);
+      setModal(false);
+      return;
     }
-    setModal(false);
+    setSubmitLoading(true);
+    try {
+      await createMembershipUseCase({
+        tipo: form.tipo,
+        duracionDias: Number(form.duracionDias) || 30,
+        precio: form.precio,
+        status: 'active',
+      });
+      setModal(false);
+      const params = { page: pagination.page, limit: pagination.limit };
+      if (statusFilter) params.status = statusFilter;
+      const res = await getMembershipsList(params);
+      setMemberships(res.data ?? []);
+      setPagination((p) => ({ ...p, ...res.pagination }));
+    } catch (err) {
+      setSubmitError(err.message || 'Error al crear membresía');
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   const handleDelete = (id, nombre) => {
@@ -275,7 +298,6 @@ export default function Memberships() {
                       onClick={() => handleToggleStatus(m)}
                       disabled={updatingStatusId === m.id}
                     />
-                    <ActionIcon icon={Pencil} label="Editar membresía" variant="secondary" onClick={() => openEdit(m)} />
                     <ActionIcon icon={Trash2} label="Eliminar membresía" variant="danger" onClick={() => handleDelete(m.id, m.nombre)} />
                   </div>
                 </div>
@@ -332,9 +354,12 @@ export default function Memberships() {
                 <label>Precio (COP)</label>
                 <input type="number" min={0} value={form.precio} onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))} placeholder="0" />
               </div>
+              {submitError && (
+                <p className="info-muted" style={{ color: 'var(--fit-danger, #ef5350)', marginBottom: '0.75rem' }}>{submitError}</p>
+              )}
               <div className="form-actions">
-                <button type="submit">Guardar</button>
-                <button type="button" className="secondary" onClick={() => setModal(false)}>Cancelar</button>
+                <button type="submit" disabled={submitLoading}>{submitLoading ? 'Guardando…' : 'Guardar'}</button>
+                <button type="button" className="secondary" onClick={() => setModal(false)} disabled={submitLoading}>Cancelar</button>
               </div>
             </form>
           </div>

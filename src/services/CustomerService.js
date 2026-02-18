@@ -1,4 +1,4 @@
-import { getCustomers as getCustomersApi, getCustomerById as getCustomerByIdApi, createCustomer as createCustomerApi } from '../api/customers.js';
+import { getCustomers as getCustomersApi, getCustomerById as getCustomerByIdApi, createCustomer as createCustomerApi, updateCustomer as updateCustomerApi, getCustomersLeft as getCustomersLeftApi } from '../api/customers.js';
 import { fromApi as customerFromApi } from '../models/Customer.js';
 import { fromApi as paginationFromApi } from '../models/Pagination.js';
 
@@ -27,6 +27,30 @@ export const CustomerService = {
    */
   async getCustomerById(id, options = {}) {
     const apiCustomer = await getCustomerByIdApi(id, options);
+    return customerFromApi(apiCustomer);
+  },
+
+  /**
+   * Obtiene clientes dados de baja (GET /customers/left).
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<{ message: string, data: object[] }>}
+   */
+  async getLeft(options = {}) {
+    const response = await getCustomersLeftApi(options);
+    return {
+      message: response.message ?? '',
+      data: (response.data ?? []).map(customerFromApi).filter(Boolean),
+    };
+  },
+
+  /**
+   * Actualiza un customer (PUT /customers/:id).
+   * @param {string} id
+   * @param {object} payload - ej: { marked_as_left: true }
+   * @returns {Promise<object|null>} Customer actualizado normalizado
+   */
+  async update(id, payload) {
+    const apiCustomer = await updateCustomerApi(id, payload);
     return customerFromApi(apiCustomer);
   },
 

@@ -1,5 +1,5 @@
-import { getMemberships as getMembershipsApi, updateMembership as updateMembershipApi } from '../api/memberships.js';
-import { fromApi as membershipFromApi } from '../models/Membership.js';
+import { getMemberships as getMembershipsApi, createMembership as createMembershipApi, updateMembership as updateMembershipApi } from '../api/memberships.js';
+import { fromApi as membershipFromApi, toApiCreatePayload } from '../models/Membership.js';
 import { fromApi as paginationFromApi } from '../models/Pagination.js';
 
 /**
@@ -17,6 +17,19 @@ export const MembershipService = {
       data: (result.data ?? []).map(membershipFromApi).filter(Boolean),
       pagination: paginationFromApi(result.pagination),
     };
+  },
+
+  /**
+   * Crea una membresía (POST /memberships).
+   * @param {{ tipo?: string, duracionDias?: number, precio?: number, status?: string }} form - formulario UI; o payload API directo
+   * @returns {Promise<object|null>} Membresía creada normalizada
+   */
+  async create(form) {
+    const payload = form.membership_type != null
+      ? form
+      : toApiCreatePayload(form);
+    const apiMembership = await createMembershipApi(payload);
+    return membershipFromApi(apiMembership);
   },
 
   /**

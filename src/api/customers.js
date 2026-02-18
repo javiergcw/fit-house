@@ -22,6 +22,23 @@ export async function getCustomers(params = {}) {
 }
 
 /**
+ * GET /customers/left
+ * Clientes que se fueron (marcados como dada de baja).
+ * @param {{ signal?: AbortSignal }} [options]
+ * @returns {Promise<{ success: boolean, message: string, data: object[] }>}
+ */
+export async function getCustomersLeft(options = {}) {
+  const { signal, ...rest } = options;
+  const response = await http.get('/customers/left', { signal, ...rest });
+
+  if (response.success === false) {
+    throw new Error(response.message || 'Error al obtener clientes dados de baja');
+  }
+
+  return response;
+}
+
+/**
  * GET /customers/:id
  * @param {string} id - ID del customer
  * @param {{ signal?: AbortSignal }} [options] - signal para cancelar la petición
@@ -34,6 +51,23 @@ export async function getCustomerById(id, options = {}) {
 
   if (!response.success || response.data == null) {
     throw new Error(response.message || 'Customer no encontrado');
+  }
+
+  return response.data;
+}
+
+/**
+ * PUT /customers/:id
+ * @param {string} id - ID del customer
+ * @param {object} body - Campos a actualizar (ej: { marked_as_left: true })
+ * @returns {Promise<object>} Customer actualizado (objeto plano del backend)
+ */
+export async function updateCustomer(id, body) {
+  if (!id) throw new Error('ID de customer requerido');
+  const response = await http.put(`/customers/${encodeURIComponent(id)}`, body);
+
+  if (!response.success || response.data == null) {
+    throw new Error(response.message || 'Error al actualizar customer');
   }
 
   return response.data;
