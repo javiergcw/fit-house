@@ -35,8 +35,10 @@ export function AuthProvider({ children }) {
     setSession(loadStoredSession());
   }, []);
 
+  const token = session?.token ?? null;
   const user = session?.user ?? null;
   const company = session?.company ?? null;
+  const isAuthenticated = Boolean(token && user);
 
   /** Recibe los datos devueltos por el caso de uso loginUser y establece la sesión */
   const loginWithData = (data) => {
@@ -56,7 +58,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, company, loginWithData, logout }}>
+    <AuthContext.Provider value={{ token, user, company, isAuthenticated, loginWithData, logout }}>
       {children}
     </AuthContext.Provider>
   );

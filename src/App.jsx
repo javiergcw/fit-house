@@ -14,8 +14,8 @@ import Reports from './pages/Reports';
 import './App.css';
 
 function ProtectedRoute({ children }) {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  const { token, user } = useAuth();
+  if (!token || !user) return <Navigate to="/login" replace />;
   return children;
 }
 
