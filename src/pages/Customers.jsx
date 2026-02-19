@@ -335,6 +335,8 @@ export default function Customers() {
     try {
       await createCustomerMembership(selectedId, saleForm.membershipId);
       setSaleModal(false);
+      const data = await getCustomerMemberships(selectedId);
+      setCustomerMemberships(data);
     } catch (err) {
       setSaleError(err.message || 'Error al asignar membresía');
     } finally {
